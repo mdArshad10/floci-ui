@@ -89,7 +89,6 @@ async function flush(
                 message: JSON.stringify({
                     method: ev.method,
                     path: ev.path,
-                    action: ev.action ?? ev.target,
                     statusCode: ev.statusCode,
                     latencyMs: ev.latencyMs,
                 }),

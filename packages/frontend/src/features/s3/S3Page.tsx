@@ -37,9 +37,9 @@ import {
     putBucketTags,
     putBucketVersioning,
     putS3ObjectTags,
+    s3ObjectDownloadUrl,
     uploadS3Object,
 } from '@/api/services'
-import {PROXY} from '@/api/floci-client'
 import {timeAgo} from '@/lib/utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ function fileIcon(key: string) {
 }
 
 function downloadUrl(bucket: string, key: string) {
-    return `${PROXY}/${bucket}/${key.split('/').map(encodeURIComponent).join('/')}`
+    return s3ObjectDownloadUrl(bucket, key)
 }
 
 // ─── Breadcrumb ───────────────────────────────────────────────────────────────

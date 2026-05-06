@@ -21,7 +21,7 @@ import flociLogo from '@/assets/floci.png'
 import {useTheme} from '@/lib/useTheme'
 import {useQuery} from '@tanstack/react-query'
 import {fetchHealth, SERVICE_META} from '@/api/services'
-import {FLOCI_BASE_URL} from '@/api/floci-client'
+
 import type {ServiceName} from '@/api/types'
 import {useCloudWatchIngestor} from '@/features/cloudwatch/hooks/useCloudWatchIngestor'
 
@@ -106,11 +106,10 @@ export function Layout() {
                     <button className="icon-btn" onClick={toggle} title="Toggle theme">
                         {theme === 'dark' ? <Sun size={14}/> : <Moon size={14}/>}
                     </button>
-                    <div className={`connection ${isConnected ? 'connected' : 'disconnected'}`}
-                         title={`${connectionLabel} a ${FLOCI_BASE_URL}`}>
+                    <div className={`connection ${isConnected ? 'connected' : 'disconnected'}`}>
                         <span className={`dot ${status}`}/>
                         <span className="connection-state">{connectionLabel}</span>
-                        <span className="connection-target">{FLOCI_BASE_URL}</span>
+                        <span className="connection-target">floci-api</span>
                     </div>
                 </header>
                 <main className="main">
