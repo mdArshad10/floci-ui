@@ -2,20 +2,23 @@ import {NavLink, Outlet} from 'react-router-dom'
 import {
     AreaChart,
     Bell,
-    Cloud,
     Cpu,
     Database,
     KeyRound,
     LayoutDashboard,
     Lock,
     MessageSquare,
+    Moon,
     Search,
     Shield,
     SlidersHorizontal,
+    Sun,
     Table2,
     Users,
     Zap,
 } from 'lucide-react'
+import flociLogo from '@/assets/floci.png'
+import {useTheme} from '@/lib/useTheme'
 import {useQuery} from '@tanstack/react-query'
 import {fetchHealth, SERVICE_META} from '@/api/services'
 import {FLOCI_BASE_URL} from '@/api/floci-client'
@@ -50,6 +53,7 @@ function NavItem({to, icon, label}: { to: string; icon: React.ElementType; label
 }
 
 export function Layout() {
+    const {theme, toggle} = useTheme()
     const {data, isError} = useQuery({
         queryKey: ['health'],
         queryFn: ({signal}) => fetchHealth(signal),
@@ -67,7 +71,7 @@ export function Layout() {
             <aside className="sidebar">
                 <div className="brand">
                     <div className="brand-mark">
-                        <Cloud size={15}/>
+                        <img src={flociLogo} alt="Floci" style={{width: '100%', height: '100%', objectFit: 'contain'}}/>
                     </div>
                     <div>
                         <h1>Floci</h1>
@@ -99,6 +103,9 @@ export function Layout() {
                         <input placeholder="Search services, features, docs, and more"/>
                         <span className="kbd">/</span>
                     </div>
+                    <button className="icon-btn" onClick={toggle} title="Toggle theme">
+                        {theme === 'dark' ? <Sun size={14}/> : <Moon size={14}/>}
+                    </button>
                     <div className={`connection ${isConnected ? 'connected' : 'disconnected'}`}
                          title={`${connectionLabel} a ${FLOCI_BASE_URL}`}>
                         <span className={`dot ${status}`}/>

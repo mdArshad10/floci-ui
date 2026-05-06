@@ -1,0 +1,28 @@
+services:
+  floci-ui:
+    build: .
+    ports:
+      - "3000:80"
+    depends_on:
+      - floci
+    networks:
+      - floci_default
+
+  floci:
+    image: floci/floci:latest-compat
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./data:/app/data
+      - ./init/ready.d:/etc/floci/init/ready.d:ro
+      - ./init/files:/etc/floci/init/files:ro
+    environment:
+      FLOCI_STORAGE_MODE: persistent
+    networks:
+      floci_default:
+        aliases:
+          - localhost.floci.io
+
+networks:
+  floci_default:
+    name: floci_default
