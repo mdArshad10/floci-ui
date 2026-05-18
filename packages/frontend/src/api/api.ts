@@ -8,6 +8,26 @@ export class AuthenticationRequiredError extends Error {
 }
 
 export const apiEndpointKeys = {
+  clouds: {
+    list: "clouds.list",
+    services: "clouds.services.list",
+    status: "clouds.status.get",
+    schema: "clouds.services.schema.get",
+    resources: {
+      list: "clouds.services.resources.list",
+      get: "clouds.services.resources.get",
+      create: "clouds.services.resources.create",
+      delete: "clouds.services.resources.delete",
+    },
+    storage: {
+      objects: {
+        list: "clouds.services.storage.objects.list",
+        upload: "clouds.services.storage.objects.upload",
+        download: "clouds.services.storage.objects.download",
+        delete: "clouds.services.storage.objects.delete",
+      },
+    },
+  },
   aws: {
     s3: {
       buckets: {
@@ -60,10 +80,126 @@ export const apiEndpointKeys = {
         list: "aws.cloudwatch.metrics.list",
       },
     },
+    eks: {
+      clusters: {
+        list: "aws.eks.clusters.list",
+        describe: "aws.eks.clusters.describe",
+      },
+      nodegroups: {
+        list: "aws.eks.nodegroups.list",
+        describe: "aws.eks.nodegroups.describe",
+      },
+    },
+    rds: {
+      instances: {
+        list: "aws.rds.instances.list",
+        describe: "aws.rds.instances.describe",
+      },
+    },
   },
 } as const;
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
 export const endpointRegistry: EndpointRegistry = new Map([
+  // Cloud Proxy
+  [
+    apiEndpointKeys.clouds.list,
+    {
+      path: "/clouds",
+      method: "GET",
+      telemetry: { provider: "system", service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.services,
+    {
+      path: "/clouds/:cloud/services",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.status,
+    {
+      path: "/clouds/:cloud/status",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.schema,
+    {
+      path: "/clouds/:cloud/services/:service/schema",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.resources.list,
+    {
+      path: "/clouds/:cloud/services/:service/resources",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.resources.get,
+    {
+      path: "/clouds/:cloud/services/:service/resources/:id",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.resources.create,
+    {
+      path: "/clouds/:cloud/services/:service/resources",
+      method: "POST",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.resources.delete,
+    {
+      path: "/clouds/:cloud/services/:service/resources/:id",
+      method: "DELETE",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.storage.objects.list,
+    {
+      path: "/clouds/:cloud/services/storage/resources/:id/objects",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.storage.objects.upload,
+    {
+      path: "/clouds/:cloud/services/storage/resources/:id/object",
+      method: "PUT",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.storage.objects.download,
+    {
+      path: "/clouds/:cloud/services/storage/resources/:id/object",
+      method: "GET",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+  [
+    apiEndpointKeys.clouds.storage.objects.delete,
+    {
+      path: "/clouds/:cloud/services/storage/resources/:id/object",
+      method: "DELETE",
+      telemetry: { service: "cloud-proxy" },
+    },
+  ],
+
   // AWS S3
   [
     apiEndpointKeys.aws.s3.buckets.list,
@@ -268,6 +404,58 @@ export const endpointRegistry: EndpointRegistry = new Map([
     },
   ],
 
+  // AWS EKS
+  [
+    apiEndpointKeys.aws.eks.clusters.list,
+    {
+      path: "/eks/clusters",
+      method: "GET",
+      telemetry: { provider: "aws", service: "eks" },
+    },
+  ],
+  [
+    apiEndpointKeys.aws.eks.clusters.describe,
+    {
+      path: "/eks/clusters/:name",
+      method: "GET",
+      telemetry: { provider: "aws", service: "eks" },
+    },
+  ],
+  [
+    apiEndpointKeys.aws.eks.nodegroups.list,
+    {
+      path: "/eks/clusters/:name/nodegroups",
+      method: "GET",
+      telemetry: { provider: "aws", service: "eks" },
+    },
+  ],
+  [
+    apiEndpointKeys.aws.eks.nodegroups.describe,
+    {
+      path: "/eks/clusters/:name/nodegroups/:nodegroup",
+      method: "GET",
+      telemetry: { provider: "aws", service: "eks" },
+    },
+  ],
+
+  // AWS RDS
+  [
+    apiEndpointKeys.aws.rds.instances.list,
+    {
+      path: "/rds/instances",
+      method: "GET",
+      telemetry: { provider: "aws", service: "rds" },
+    },
+  ],
+  [
+    apiEndpointKeys.aws.rds.instances.describe,
+    {
+      path: "/rds/instances/:identifier",
+      method: "GET",
+      telemetry: { provider: "aws", service: "rds" },
+    },
+  ],
+
   // TODO: migrate remaining services into this registry.
 ]);
 
@@ -278,7 +466,7 @@ export function createApiClient(
 ) {
   const client = new HttpClient(
     {
-      baseUrl: import.meta.env.VITE_API_BASE_URL ?? "/api",
+      baseUrl: API_BASE_URL,
       defaultHeaders: { Accept: "application/json" },
       timeout: 10_000,
     },

@@ -2,7 +2,7 @@ services:
   floci-ui:
     image: floci/floci-ui:latest
     ports:
-      - "3000:80"
+      - "3000:3000"
     environment:
       FLOCI_ENDPOINT: http://floci:4566
       AWS_REGION: us-east-1

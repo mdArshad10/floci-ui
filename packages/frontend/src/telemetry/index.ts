@@ -17,3 +17,4 @@ export type {
   Unsubscribe,
 } from "./EventBus";
 export type { ScheduledJob } from "./Scheduler";
+export type { TelemetryIngestor } from "./TelemetryIngestor";

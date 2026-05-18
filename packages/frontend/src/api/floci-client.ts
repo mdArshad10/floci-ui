@@ -1,11 +1,9 @@
-import { FlociError } from "./types";
+import { apiClient } from "./api";
+import type { HttpMethod } from "./HttpClient";
 import {
-  emitApiRequest,
   subscribeApiRequests,
   type ApiRequestEvent,
 } from "@/telemetry";
-
-export const API_BASE = "/api";
 
 export type FlociRequestEvent = ApiRequestEvent;
 
@@ -15,50 +13,12 @@ export function subscribeRequests(
   return subscribeApiRequests(cb);
 }
 
-async function apiFetch<T>(
-  path: string,
-  service: string,
-  init: RequestInit,
-  signal?: AbortSignal,
-): Promise<T> {
-  const started = performance.now();
-  let statusCode = 0;
-  try {
-    const res = await fetch(`${API_BASE}${path}`, { ...init, signal }).catch(
-      (cause: unknown) => {
-        const message =
-          cause instanceof Error ? cause.message : "Network error";
-        throw new FlociError(
-          `Cannot reach floci-api: ${message}`,
-          undefined,
-          path,
-        );
-      },
-    );
-    statusCode = res.status;
-    if (!res.ok) throw new FlociError(`HTTP ${res.status}`, res.status, path);
-    return res.json() as Promise<T>;
-  } finally {
-    if (statusCode > 0) {
-      emitApiRequest({
-        provider: "aws",
-        service,
-        method: init.method ?? "GET",
-        path,
-        statusCode,
-        latencyMs: Math.round(performance.now() - started),
-        timestamp: Date.now(),
-      });
-    }
-  }
-}
-
 export function apiGet<T>(
   path: string,
   service: string,
   signal?: AbortSignal,
 ): Promise<T> {
-  return apiFetch<T>(path, service, {}, signal);
+  return apiRequest<T>("GET", path, service, undefined, signal);
 }
 
 export function apiPost<T>(
@@ -67,16 +27,7 @@ export function apiPost<T>(
   body: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  return apiFetch<T>(
-    path,
-    service,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-    signal,
-  );
+  return apiRequest<T>("POST", path, service, body, signal);
 }
 
 export function apiPut<T>(
@@ -85,16 +36,7 @@ export function apiPut<T>(
   body: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  return apiFetch<T>(
-    path,
-    service,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-    signal,
-  );
+  return apiRequest<T>("PUT", path, service, body, signal);
 }
 
 export function apiDelete<T>(
@@ -102,5 +44,20 @@ export function apiDelete<T>(
   service: string,
   signal?: AbortSignal,
 ): Promise<T> {
-  return apiFetch<T>(path, service, { method: "DELETE" }, signal);
+  return apiRequest<T>("DELETE", path, service, undefined, signal);
+}
+
+async function apiRequest<T>(
+  method: HttpMethod,
+  path: string,
+  service: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const res = await apiClient.request<T>(method, path, {
+    signal,
+    ...(body === undefined ? {} : { body }),
+    telemetry: { provider: "aws", service },
+  });
+  return res.data;
 }

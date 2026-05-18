@@ -1,22 +1,27 @@
 import { CloudWatchRequestIngestor } from "./CloudWatchRequestIngestor";
 import { Scheduler } from "./Scheduler";
-
-const CLOUDWATCH_FLUSH_INTERVAL_MS = 5_000;
+import type { TelemetryIngestor } from "./TelemetryIngestor";
 
 export class TelemetryRuntime {
   private readonly scheduler = new Scheduler();
-  private readonly cloudWatchIngestor = new CloudWatchRequestIngestor();
+  private readonly ingestors: TelemetryIngestor[];
   private started = false;
+
+  constructor(ingestors: TelemetryIngestor[] = [new CloudWatchRequestIngestor()]) {
+    this.ingestors = ingestors;
+  }
 
   start() {
     if (this.started) return;
 
-    this.cloudWatchIngestor.start();
-    this.scheduler.add({
-      name: "cloudwatch-request-ingestor",
-      intervalMs: CLOUDWATCH_FLUSH_INTERVAL_MS,
-      run: () => this.cloudWatchIngestor.flush(),
-    });
+    for (const ingestor of this.ingestors) {
+      ingestor.start();
+      this.scheduler.add({
+        name: ingestor.name,
+        intervalMs: ingestor.flushIntervalMs,
+        run: () => ingestor.flush(),
+      });
+    }
 
     this.started = true;
   }
@@ -25,7 +30,9 @@ export class TelemetryRuntime {
     if (!this.started) return;
 
     this.scheduler.stop();
-    this.cloudWatchIngestor.stop();
+    for (const ingestor of this.ingestors) {
+      ingestor.stop();
+    }
     this.started = false;
   }
 }

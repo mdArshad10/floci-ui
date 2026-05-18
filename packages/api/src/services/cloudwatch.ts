@@ -35,7 +35,7 @@ export type PutLogEventsInput = {
 
 export function createCloudWatchService(
   logsClient: CloudWatchLogsClient = awsClients.cloudwatchLogs,
-  metricsClient: CloudWatchClient = awsClients.cloudwatch,
+  cloudWatchClient: CloudWatchClient = awsClients.cloudwatch,
 ) {
   return {
     async listLogGroups(prefix?: string) {
@@ -56,9 +56,16 @@ export function createCloudWatchService(
     },
 
     async createLogGroup(input: CreateLogGroupInput) {
-      await logsClient.send(
-        new CreateLogGroupCommand({ logGroupName: input.name }),
-      );
+      try {
+        await logsClient.send(
+          new CreateLogGroupCommand({ logGroupName: input.name }),
+        );
+      } catch (err) {
+        if (
+          (err as { name?: string }).name !== "ResourceAlreadyExistsException"
+        )
+          throw err;
+      }
 
       if (input.retentionInDays) {
         await logsClient.send(
@@ -94,12 +101,19 @@ export function createCloudWatchService(
     },
 
     async createLogStream(input: CreateLogStreamInput) {
-      await logsClient.send(
-        new CreateLogStreamCommand({
-          logGroupName: input.group,
-          logStreamName: input.name,
-        }),
-      );
+      try {
+        await logsClient.send(
+          new CreateLogStreamCommand({
+            logGroupName: input.group,
+            logStreamName: input.name,
+          }),
+        );
+      } catch (err) {
+        if (
+          (err as { name?: string }).name !== "ResourceAlreadyExistsException"
+        )
+          throw err;
+      }
     },
 
     async deleteLogStream(group: string, stream: string) {
@@ -139,7 +153,7 @@ export function createCloudWatchService(
     },
 
     async listAlarms() {
-      const res = await metricsClient.send(new DescribeAlarmsCommand({}));
+      const res = await cloudWatchClient.send(new DescribeAlarmsCommand({}));
       return (res.MetricAlarms ?? []).map((alarm) => ({
         alarmName: alarm.AlarmName ?? "",
         stateValue: alarm.StateValue ?? "INSUFFICIENT_DATA",
@@ -151,7 +165,7 @@ export function createCloudWatchService(
     },
 
     async listMetrics() {
-      const res = await metricsClient.send(new ListMetricsCommand({}));
+      const res = await cloudWatchClient.send(new ListMetricsCommand({}));
       return (res.Metrics ?? []).map((metric, index) => {
         const namespace = metric.Namespace ?? "Unknown";
         const metricName = metric.MetricName ?? "UnnamedMetric";

@@ -6,6 +6,7 @@ export type ServiceName =
     | 'dynamodb'
     | 'sns'
     | 'lambda'
+    | 'eks'
     | 'secretsmanager'
     | 'cognito'
     | 'rds'

@@ -6,6 +6,9 @@ import {
   listLogGroups as listAwsCloudWatchLogGroups,
   listMetrics as listAwsCloudWatchMetrics,
 } from "./aws/cloudwatch.api";
+import { listEksResources } from "./aws/eks.api";
+import { listRdsResources } from "./aws/rds.api";
+import { getCloudStatus } from "./cloudProxyClient";
 import type {
   ConsoleOverview,
   HealthReport,
@@ -13,6 +16,7 @@ import type {
   ServiceName,
   ServiceResourceSnapshot,
 } from "./types";
+import type { CloudProvider, CloudStatus } from "@/types/cloud";
 
 export const SERVICE_META: Array<{
   name: ServiceName;
@@ -50,6 +54,13 @@ export const SERVICE_META: Array<{
     resourceLabel: "functions",
   },
   {
+    name: "eks",
+    displayName: "EKS",
+    route: "/eks",
+    implemented: true,
+    resourceLabel: "clusters",
+  },
+  {
     name: "dynamodb",
     displayName: "DynamoDB",
     route: "/dynamodb",
@@ -81,7 +92,7 @@ export const SERVICE_META: Array<{
     name: "rds",
     displayName: "RDS",
     route: "/rds",
-    implemented: false,
+    implemented: true,
     resourceLabel: "instances",
   },
   {
@@ -116,46 +127,24 @@ export const SERVICE_META: Array<{
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
-type FlociHealthResponse = {
-  version?: string;
-  services?: Record<string, string>;
-};
 type ServiceStatus = "healthy" | "degraded" | "unavailable" | "unknown";
 
-function normalizeStatus(value?: string): ServiceStatus {
-  if (!value) return "unknown";
-  const n = value.toLowerCase();
-  if (n === "running" || n === "healthy" || n === "enabled") return "healthy";
-  if (n === "available" || n === "disabled") return "unknown";
-  if (n === "degraded") return "degraded";
-  if (n === "unavailable" || n === "error" || n === "down")
-    return "unavailable";
+function cloudRuntimeStatus(status: CloudStatus): ServiceStatus {
+  if (status.runtime === "reachable") return "healthy";
+  if (status.runtime === "unavailable") return "unavailable";
   return "unknown";
 }
 
-function serviceHealth(
-  raw: Record<string, string>,
-  name: ServiceName,
-): ServiceStatus {
-  if (name === "cloudwatch") {
-    const logs = normalizeStatus(raw.logs ?? raw.cloudwatchlogs);
-    const metrics = normalizeStatus(raw.monitoring ?? raw.cloudwatchmetrics);
-    if (logs === "healthy" || metrics === "healthy") return "healthy";
-    if (logs === "unavailable" || metrics === "unavailable") return "degraded";
-    return "unknown";
-  }
-  if (name === "cognito")
-    return normalizeStatus(raw["cognito-idp"] ?? raw.cognito);
-  return normalizeStatus(raw[name]);
-}
-
-export async function fetchHealth(signal?: AbortSignal): Promise<HealthReport> {
-  const health = await apiGet<FlociHealthResponse>("/health", "health", signal);
-  const raw = health.services ?? {};
+export async function fetchHealth(
+  signal?: AbortSignal,
+  cloud: CloudProvider = "aws",
+): Promise<HealthReport> {
+  const cloudStatus = await getCloudStatus(cloud, signal);
+  const implementedStatus = cloudRuntimeStatus(cloudStatus);
   const services = SERVICE_META.map((meta) => ({
     name: meta.name,
     displayName: meta.displayName,
-    status: serviceHealth(raw, meta.name),
+    status: meta.implemented ? implementedStatus : "unknown",
     requestCount: 0,
     errorCount: 0,
   }));
@@ -172,8 +161,7 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthReport> {
   return {
     status,
     services,
-    checkedAt: new Date().toISOString(),
-    version: health.version,
+    checkedAt: cloudStatus.checkedAt,
   };
 }
 
@@ -210,11 +198,12 @@ async function timedCount(
 
 export async function fetchConsoleOverview(
   signal?: AbortSignal,
+  cloud: CloudProvider = "aws",
 ): Promise<ConsoleOverview> {
   const [health, resources, logGroups, alarms, metrics] = await Promise.all([
-    fetchHealth(signal),
+    fetchHealth(signal, cloud),
     Promise.all(
-      ["s3", "sqs", "lambda", "dynamodb", "sns"].map((s) =>
+      ["s3", "sqs", "lambda", "eks", "rds", "dynamodb", "sns"].map((s) =>
         timedCount(s as ServiceName, signal),
       ),
     ),
@@ -246,6 +235,8 @@ export async function listServiceResources(
   if (service === "sqs") return listSqsQueues(signal);
   if (service === "sns") return listSnsTopicResources(signal);
   if (service === "lambda") return listLambdaFunctions(signal);
+  if (service === "eks") return listEksResources(signal);
+  if (service === "rds") return listRdsResources(signal);
   if (service === "dynamodb") return listDynamoDbTables(signal);
   if (service === "cloudwatch") return listAwsCloudWatchResources(signal);
   return [];
@@ -267,19 +258,26 @@ async function listSqsQueues(signal?: AbortSignal): Promise<ResourceSummary[]> {
   }));
 }
 
+export interface SqsRedrivePolicy {
+    deadLetterTargetArn: string
+    maxReceiveCount: number
+}
+
 export interface SqsQueueAttributes {
-  approximateNumberOfMessages?: number;
-  approximateNumberOfMessagesDelayed?: number;
-  approximateNumberOfMessagesNotVisible?: number;
-  createdTimestamp?: number;
-  lastModifiedTimestamp?: number;
-  visibilityTimeout?: number;
-  maximumMessageSize?: number;
-  messageRetentionPeriod?: number;
-  receiveMessageWaitTimeSeconds?: number;
-  delaySeconds?: number;
-  fifoQueue?: boolean;
-  contentBasedDeduplication?: boolean;
+    approximateNumberOfMessages?: number
+    approximateNumberOfMessagesDelayed?: number
+    approximateNumberOfMessagesNotVisible?: number
+    createdTimestamp?: number
+    lastModifiedTimestamp?: number
+    visibilityTimeout?: number
+    maximumMessageSize?: number
+    messageRetentionPeriod?: number
+    receiveMessageWaitTimeSeconds?: number
+    delaySeconds?: number
+    fifoQueue?: boolean
+    contentBasedDeduplication?: boolean
+    queueArn?: string
+    redrivePolicy?: SqsRedrivePolicy
 }
 
 export interface SqsQueueConfig {
@@ -337,18 +335,27 @@ export async function purgeSqsQueue(
   await apiPost("/sqs/queue/purge", "sqs", { url: queueUrl }, signal);
 }
 
+/**
+ * FIFO send options. `contentBasedDedup` reflects the queue's setting so the
+ * API knows whether it must generate a MessageDeduplicationId.
+ */
+export interface SqsSendOptions {
+    messageGroupId?: string
+    contentBasedDedup?: boolean
+}
+
 export async function sendSqsMessage(
-  queueUrl: string,
-  messageBody: string,
-  signal?: AbortSignal,
+    queueUrl: string,
+    messageBody: string,
+    options: SqsSendOptions = {},
+    signal?: AbortSignal,
 ): Promise<string> {
-  const res = await apiPost<{ messageId: string }>(
-    "/sqs/queue/message",
-    "sqs",
-    { url: queueUrl, messageBody },
-    signal,
-  );
-  return res.messageId;
+    const res = await apiPost<{messageId: string}>('/sqs/queue/message', 'sqs', {
+        url: queueUrl,
+        messageBody,
+        ...options,
+    }, signal)
+    return res.messageId
 }
 
 export interface SqsMessage {
@@ -414,6 +421,58 @@ export async function removeSqsQueueTags(
     { url: queueUrl, keys },
     signal,
   );
+}
+
+export interface SqsBatchResult {
+    successful: Array<{id: string; messageId: string}>
+    failed: Array<{id: string; message: string}>
+}
+
+export async function sendSqsMessageBatch(
+    queueUrl: string,
+    messages: string[],
+    options: SqsSendOptions = {},
+    signal?: AbortSignal,
+): Promise<SqsBatchResult> {
+    return apiPost<SqsBatchResult>('/sqs/queue/messages/batch', 'sqs', {
+        url: queueUrl,
+        messages,
+        ...options,
+    }, signal)
+}
+
+export async function setSqsQueueAttributes(
+    queueUrl: string,
+    attributes: Record<string, string>,
+    signal?: AbortSignal,
+): Promise<void> {
+    await apiPut('/sqs/queue/attributes', 'sqs', {url: queueUrl, attributes}, signal)
+}
+
+export interface SqsMoveTask {
+    status?: string
+    approximateNumberOfMessagesMoved?: number
+    approximateNumberOfMessagesToMove?: number
+    startedTimestamp?: number
+    failureReason?: string
+}
+
+export async function startSqsRedrive(sourceArn: string, signal?: AbortSignal): Promise<{taskHandle: string}> {
+    return apiPost<{taskHandle: string}>('/sqs/queue/redrive', 'sqs', {sourceArn}, signal)
+}
+
+export async function listSqsMoveTasks(sourceArn: string, signal?: AbortSignal): Promise<SqsMoveTask[]> {
+    return apiGet<SqsMoveTask[]>(`/sqs/queue/redrive/tasks?sourceArn=${encodeURIComponent(sourceArn)}`, 'sqs', signal)
+}
+
+/** Queues that send their failed messages to this queue (i.e. use it as a DLQ). */
+export async function listSqsDeadLetterSources(
+    queueUrl: string,
+    signal?: AbortSignal,
+): Promise<Array<{name: string; url: string}>> {
+    return apiGet<Array<{name: string; url: string}>>(
+        `/sqs/queue/dlq-sources?url=${encodeURIComponent(queueUrl)}`, 'sqs', signal,
+    )
 }
 
 // ─── SNS ──────────────────────────────────────────────────────────────────────

@@ -25,7 +25,9 @@ app.delete("/log-groups", async (c) => {
 });
 
 app.get("/log-streams", async (c) => {
-  return c.json(await cloudWatchService.listLogStreams(c.req.query("group") ?? ""));
+  return c.json(
+    await cloudWatchService.listLogStreams(c.req.query("group") ?? ""),
+  );
 });
 
 app.post("/log-streams", async (c) => {

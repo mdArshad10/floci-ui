@@ -7,6 +7,7 @@ import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { CloudWatchClient } from "@aws-sdk/client-cloudwatch";
 import { EKSClient } from "@aws-sdk/client-eks";
 import { EC2Client } from "@aws-sdk/client-ec2";
+import { RDSClient } from "@aws-sdk/client-rds";
 const endpoint = process.env.FLOCI_ENDPOINT;
 const region = process.env.AWS_REGION || "us-east-1";
 const credentials = {
@@ -29,6 +30,7 @@ export const awsClients = {
   cloudwatch: new CloudWatchClient(base),
   eks: new EKSClient(base),
   ec2: new EC2Client(base),
+  rds: new RDSClient(base),
 } as const;
 
 export type AwsClientName = keyof typeof awsClients;
@@ -42,3 +44,4 @@ export const cwLogs = awsClients.cloudwatchLogs;
 export const cw = awsClients.cloudwatch;
 export const eks = awsClients.eks;
 export const ec2 = awsClients.ec2;
+export const rds = awsClients.rds;

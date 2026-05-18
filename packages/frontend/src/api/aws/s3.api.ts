@@ -1,4 +1,4 @@
-import { apiClient, apiEndpointKeys } from "@/api/api";
+import { API_BASE_URL, apiClient, apiEndpointKeys } from "@/api/api";
 import type { ResourceSummary } from "@/api/types";
 
 export interface S3Bucket {
@@ -95,8 +95,7 @@ export async function uploadS3Object(
 }
 
 export function s3ObjectDownloadUrl(bucket: string, key: string): string {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api";
-  return `${baseUrl}/s3/${encodeURIComponent(bucket)}/object/download?key=${encodeURIComponent(key)}`;
+  return `${API_BASE_URL}/s3/${encodeURIComponent(bucket)}/object/download?key=${encodeURIComponent(key)}`;
 }
 
 export async function deleteS3Object(

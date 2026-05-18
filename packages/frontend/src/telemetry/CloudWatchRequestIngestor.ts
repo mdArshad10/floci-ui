@@ -1,12 +1,14 @@
-import {
-  subscribeApiRequests,
-} from "./requestEventBus";
+import { subscribeApiRequests } from "./requestEventBus";
+import type { TelemetryIngestor } from "./TelemetryIngestor";
 import type { ApiRequestEvent } from "./types";
 import { cloudWatchClient } from "@/api/aws/cloudwatch.api";
 
-const SKIP_SERVICES = new Set(["cloudwatch", "health"]);
+const SKIP_SERVICES = new Set(["cloudwatch", "cloud-proxy", "health"]);
+const FLUSH_INTERVAL_MS = 5_000;
 
-export class CloudWatchRequestIngestor {
+export class CloudWatchRequestIngestor implements TelemetryIngestor {
+  readonly name = "cloudwatch-request-ingestor";
+  readonly flushIntervalMs = FLUSH_INTERVAL_MS;
   private readonly buffer = new Map<string, ApiRequestEvent[]>();
   private readonly knownGroups = new Set<string>();
   private readonly knownStreams = new Set<string>();

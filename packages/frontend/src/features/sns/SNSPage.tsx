@@ -488,11 +488,15 @@ export function SNSPage() {
     })
 
     useEffect(() => {
-        if (selected && topics.length > 0) {
-            const updated = topics.find((t) => t.arn === selected.arn)
-            if (!updated) setSelected(null)
+        if (!selected || topics.length === 0) return
+
+        const updated = topics.find((t) => t.arn === selected.arn)
+        if (!updated) {
+            setSelected(null)
+        } else if (updated !== selected) {
+            setSelected(updated)
         }
-    }, [topics])
+    }, [selected, topics])
 
     const filtered = topics.filter((t) => !search || t.name.toLowerCase().includes(search.toLowerCase()))
 
