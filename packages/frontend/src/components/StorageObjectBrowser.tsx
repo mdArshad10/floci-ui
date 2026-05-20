@@ -1,7 +1,15 @@
 import {useEffect, useRef, useState} from 'react'
-import {ChevronLeft, ChevronRight, Download, File, Folder, RefreshCw, Trash2, Upload} from 'lucide-react'
+import {ChevronLeft, ChevronRight, Copy, Download, File, Folder, Loader2, RefreshCw, Trash2, Upload} from 'lucide-react'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
-import {deleteStorageObject, listStorageObjects, storageObjectDownloadUrl, uploadStorageObject} from '@/api/cloudProxyClient'
+import {
+    copyStorageObject,
+    createCloudResource,
+    deleteStorageObject,
+    listCloudResources,
+    listStorageObjects,
+    storageObjectDownloadUrl,
+    uploadStorageObject,
+} from '@/api/cloudProxyClient'
 import {capabilityEnabled, capabilityFor, normalizeCapabilities, withRuntimeState} from '@/lib/capabilities'
 import type {CloudProvider} from '@/types/cloud'
 import type {CloudResource, StorageObject} from '@/types/resource'
@@ -24,15 +32,19 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
     const [folderName, setFolderName] = useState('')
     const [createFolderOpen, setCreateFolderOpen] = useState(false)
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+    const [copyObject, setCopyObject] = useState<StorageObject | null>(null)
+
     const resolvedCapabilities = withRuntimeState(normalizeCapabilities(capabilities), runtimeReachable)
     const uploadCapability = capabilityFor(resolvedCapabilities, 'upload')
     const downloadCapability = capabilityFor(resolvedCapabilities, 'download')
     const deleteCapability = capabilityFor(resolvedCapabilities, 'delete')
     const createFolderCapability = capabilityFor(resolvedCapabilities, 'createFolder')
+    const copyCapability = capabilityFor(resolvedCapabilities, 'copy')
     const canUpload = capabilityEnabled(uploadCapability)
     const canDownload = capabilityEnabled(downloadCapability)
     const canDelete = capabilityEnabled(deleteCapability)
     const canCreateFolder = capabilityEnabled(createFolderCapability)
+    const canCopy = capabilityEnabled(copyCapability)
 
     useEffect(() => {
         setPrefix('')
@@ -40,6 +52,7 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
         setFolderName('')
         setCreateFolderOpen(false)
         setDeleteConfirm(null)
+        setCopyObject(null)
         onSelectObject(undefined)
     }, [resource?.id, onSelectObject])
 
@@ -79,6 +92,22 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
         onSuccess: () => qc.invalidateQueries({queryKey: ['storage-objects', cloud, resource?.id]}),
     })
 
+    const moveCopyMut = useMutation({
+        mutationFn: async ({srcKey, destKey, destResourceId, mode}: {
+            srcKey: string; destKey: string; destResourceId?: string; mode: 'move' | 'copy'
+        }) => {
+            if (!resource) return
+            await copyStorageObject(cloud, resource.id, srcKey, destKey, destResourceId)
+            if (mode === 'move') await deleteStorageObject(cloud, resource.id, srcKey)
+        },
+        onSuccess: (_, vars) => {
+            setCopyObject(null)
+            if (vars.mode === 'move') onSelectObject(undefined)
+            void qc.invalidateQueries({queryKey: ['storage-objects', cloud, resource?.id]})
+            if (vars.destResourceId) void qc.invalidateQueries({queryKey: ['storage-objects', cloud, vars.destResourceId]})
+        },
+    })
+
     if (!resource) {
         return (
             <section className="object-browser empty compact">
@@ -89,13 +118,26 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
     }
 
     const objects = query.data?.objects ?? []
-    const error = query.error ?? uploadMut.error ?? createFolderMut.error ?? deleteMut.error
+    const error = query.error ?? uploadMut.error ?? createFolderMut.error ?? deleteMut.error ?? moveCopyMut.error
     const folders = objects.filter((object) => object.type === 'folder').length
     const files = objects.length - folders
     const objectLabel = cloud === 'azure' ? 'blobs' : 'objects'
 
     return (
         <section className="object-browser">
+            {copyObject && resource && (
+                <MoveOrCopyModal
+                    cloud={cloud}
+                    resource={resource}
+                    srcObject={copyObject}
+                    canCopy={canCopy}
+                    isPending={moveCopyMut.isPending}
+                    error={moveCopyMut.error instanceof Error ? moveCopyMut.error.message : null}
+                    onClose={() => { setCopyObject(null); moveCopyMut.reset() }}
+                    onConfirm={(destKey, destResourceId, mode) => moveCopyMut.mutate({srcKey: copyObject.key, destKey, destResourceId, mode})}
+                />
+            )}
+
             <div className="object-browser-header">
                 <div>
                     <p className="eyebrow">Objects</p>
@@ -201,9 +243,9 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
                                 }}>
                                     <span className="object-name">
                                         {object.type === 'folder' ? <Folder size={14}/> : <File size={14}/>}
-                                            {object.name}
-                                            {object.type === 'folder' && <ChevronRight size={12}/>}
-                                        </span>
+                                        {object.name}
+                                        {object.type === 'folder' && <ChevronRight size={12}/>}
+                                    </span>
                                 </td>
                                 <td>{object.type}</td>
                                 <td>{object.size === null ? '-' : formatBytes(object.size)}</td>
@@ -215,6 +257,11 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
                                                 <a className={`icon-btn ${canDownload ? '' : 'disabled'}`} href={canDownload ? storageObjectDownloadUrl(cloud, resource.id, object.key) : undefined} title={downloadCapability.reason ?? `Download ${object.name}`}>
                                                     <Download size={13}/>
                                                 </a>
+                                            )}
+                                            {copyCapability && (
+                                                <button className="icon-btn" disabled={!canCopy} title={copyCapability.reason ?? `Copy ${object.name}`} onClick={() => setCopyObject(object)}>
+                                                    <Copy size={13}/>
+                                                </button>
                                             )}
                                             {canDelete && deleteConfirm === object.key ? (
                                                 <button className="button danger compact" disabled={deleteMut.isPending} onClick={() => {
@@ -241,6 +288,152 @@ export function StorageObjectBrowser({cloud, resource, capabilities = [], runtim
     )
 }
 
+// ─── Copy modal ───────────────────────────────────────────────────────────────
+
+const NEW_RESOURCE_SENTINEL = '__new__'
+
+function MoveOrCopyModal({
+    cloud,
+    resource,
+    srcObject,
+    canCopy,
+    isPending,
+    error,
+    onClose,
+    onConfirm,
+}: {
+    cloud: CloudProvider
+    resource: CloudResource
+    srcObject: StorageObject
+    canCopy: boolean
+    isPending: boolean
+    error: string | null
+    onClose: () => void
+    onConfirm: (destKey: string, destResourceId: string | undefined, mode: 'move' | 'copy') => void
+}) {
+    const qc = useQueryClient()
+    const resourceLabel = cloud === 'azure' ? 'container' : 'bucket'
+    const [mode, setMode] = useState<'move' | 'copy'>('move')
+    const [destKey, setDestKey] = useState(() => {
+        const parts = srcObject.key.split('/')
+        const filename = parts.pop() ?? srcObject.key
+        const dir = parts.join('/')
+        return dir ? `${dir}/copy-of-${filename}` : `copy-of-${filename}`
+    })
+    const [destResourceId, setDestResourceId] = useState(resource.id)
+    const [newResourceName, setNewResourceName] = useState('')
+
+    const resourcesQuery = useQuery({
+        queryKey: ['cloud-resources', cloud, 'storage'],
+        queryFn: ({signal}) => listCloudResources(cloud, 'storage', undefined, signal),
+    })
+
+    const createResourceMut = useMutation({
+        mutationFn: () => {
+            const nameField = cloud === 'azure' ? 'containerName' : 'bucketName'
+            return createCloudResource(cloud, 'storage', {[nameField]: newResourceName.trim()})
+        },
+        onSuccess: (created) => {
+            setDestResourceId(created.id)
+            setNewResourceName('')
+            void qc.invalidateQueries({queryKey: ['cloud-resources', cloud, 'storage']})
+        },
+    })
+
+    const isCreatingNew = destResourceId === NEW_RESOURCE_SENTINEL
+    const resources = resourcesQuery.data ?? []
+    const resolvedDestId = isCreatingNew ? undefined : (destResourceId !== resource.id ? destResourceId : undefined)
+
+    return (
+        <div className="copy-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+            <div className="copy-modal">
+                {/* Mode toggle */}
+                <div className="drawer-tabs" style={{marginBottom: 14}}>
+                    <button className={`drawer-tab ${mode === 'move' ? 'active' : ''}`} onClick={() => setMode('move')}>
+                        Move
+                    </button>
+                    <button className={`drawer-tab ${mode === 'copy' ? 'active' : ''}`} onClick={() => setMode('copy')}>
+                        Copy
+                    </button>
+                </div>
+
+                <div style={{fontSize: 12, color: '#8d9cad', marginBottom: 12}}>
+                    Source: <span className="mono" style={{color: '#d1d1d1'}}>{resource.name}/{srcObject.key}</span>
+                </div>
+
+                {/* Destination resource */}
+                <div className="form-row">
+                    <label>Destination {resourceLabel}</label>
+                    {resourcesQuery.isLoading ? (
+                        <div style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#8d9cad'}}>
+                            <Loader2 size={13}/> Loading {resourceLabel}s…
+                        </div>
+                    ) : (
+                        <select
+                            className="input"
+                            value={destResourceId}
+                            onChange={(e) => setDestResourceId(e.target.value)}
+                        >
+                            {resources.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                    {r.name}{r.id === resource.id ? ' (current)' : ''}
+                                </option>
+                            ))}
+                            <option value={NEW_RESOURCE_SENTINEL}>+ New {resourceLabel}…</option>
+                        </select>
+                    )}
+                </div>
+
+                {/* Inline create new resource */}
+                {isCreatingNew && (
+                    <div style={{display: 'flex', gap: 6, alignItems: 'center', marginTop: -6, marginBottom: 4}}>
+                        <input
+                            className="input"
+                            autoFocus
+                            value={newResourceName}
+                            onChange={(e) => setNewResourceName(e.target.value.toLowerCase().replace(cloud === 'azure' ? /[^a-z0-9-]/g : /[^a-z0-9.-]/g, ''))}
+                            placeholder={`new-${resourceLabel}-name`}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && newResourceName.trim().length >= 3) createResourceMut.mutate() }}
+                        />
+                        <button
+                            className="button primary"
+                            disabled={newResourceName.trim().length < 3 || createResourceMut.isPending}
+                            onClick={() => createResourceMut.mutate()}
+                        >
+                            {createResourceMut.isPending ? <Loader2 size={13}/> : 'Create'}
+                        </button>
+                    </div>
+                )}
+                {createResourceMut.isError && (
+                    <p style={{fontSize: 12, color: '#f87171', margin: '0 0 6px'}}>{createResourceMut.error instanceof Error ? createResourceMut.error.message : 'Create failed'}</p>
+                )}
+
+                {/* Destination key */}
+                <div className="form-row">
+                    <label>Destination key</label>
+                    <input className="input" value={destKey} onChange={(e) => setDestKey(e.target.value)}/>
+                </div>
+
+                {error && <p style={{fontSize: 12, color: '#f87171', margin: '0 0 4px'}}>{error}</p>}
+
+                <div className="copy-modal-footer">
+                    <button className="button" onClick={onClose} disabled={isPending}>Cancel</button>
+                    <button
+                        className="button primary"
+                        disabled={!destKey.trim() || isCreatingNew || !canCopy || isPending}
+                        onClick={() => onConfirm(destKey, resolvedDestId, mode)}
+                    >
+                        {isPending ? <Loader2 size={13}/> : <Copy size={13}/>}
+                        {mode === 'move' ? 'Move' : 'Copy'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Breadcrumb ───────────────────────────────────────────────────────────────
+
 function ObjectBreadcrumb({prefix, onNavigate}: {prefix: string; onNavigate: (prefix: string) => void}) {
     const segments = prefix ? prefix.replace(/\/$/, '').split('/') : []
     return (
@@ -258,6 +451,8 @@ function ObjectBreadcrumb({prefix, onNavigate}: {prefix: string; onNavigate: (pr
         </div>
     )
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function normalizePrefix(value: string): string {
     const trimmed = value.trim().replace(/^\/+/, '')
