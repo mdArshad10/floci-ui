@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'bun:test'
 import {AwsComputeAdapter} from './AwsComputeAdapter'
-import type {Ec2Instance} from '../services/ec2'
+import type {Ec2Instance, RunInstanceInput} from '../services/ec2'
 
 const baseInstance: Ec2Instance = {
     instanceId: 'i-0abc123def456',
@@ -26,12 +26,14 @@ function fakeService(overrides: Partial<{
     describeInstance: (id: string) => Promise<Ec2Instance>
     terminateInstance: (id: string) => Promise<void>
     listAmis: () => Promise<[]>
+    runInstance: (input: RunInstanceInput) => Promise<Ec2Instance>
 }> = {}) {
     return {
         listInstances: async () => [baseInstance],
         describeInstance: async (_id: string) => baseInstance,
         terminateInstance: async (_id: string) => {},
         listAmis: async () => [] as [],
+        runInstance: async (_input: RunInstanceInput) => baseInstance,
         ...overrides,
     }
 }
@@ -98,9 +100,26 @@ describe('AwsComputeAdapter', () => {
         await expect(adapter.get('i-bad')).rejects.toThrow('InternalError')
     })
 
-    test('create throws not-supported error', async () => {
-        const adapter = new AwsComputeAdapter(fakeService())
-        await expect(adapter.create({values: {}})).rejects.toThrow('not supported')
+    test('create calls runInstance and returns mapped CloudResource', async () => {
+        const launched: RunInstanceInput[] = []
+        const adapter = new AwsComputeAdapter(fakeService({
+            runInstance: async (input) => { launched.push(input); return baseInstance },
+        }))
+        const result = await adapter.create({values: {
+            name: 'test-box',
+            imageId: 'ami-0abcdef123',
+            instanceType: 't3.micro',
+            keyName: 'my-key',
+            subnetId: 'subnet-abc',
+            securityGroupIds: 'sg-111, sg-222',
+        }})
+        expect(launched).toHaveLength(1)
+        expect(launched[0].name).toBe('test-box')
+        expect(launched[0].imageId).toBe('ami-0abcdef123')
+        expect(launched[0].instanceType).toBe('t3.micro')
+        expect(launched[0].securityGroupIds).toEqual(['sg-111', 'sg-222'])
+        expect(result.type).toBe('instance')
+        expect(result.cloud).toBe('aws')
     })
 
     test('delete calls terminateInstance with the id', async () => {

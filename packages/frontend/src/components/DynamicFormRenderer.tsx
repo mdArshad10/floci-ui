@@ -31,27 +31,20 @@ export function DynamicFormRenderer({schema, isSubmitting, submitLabel = 'Create
     return (
         <form className="dynamic-form" onSubmit={submit}>
             {schema.fields.map((field) => (
-                <label key={field.name} className="dynamic-field">
-                    <span>{field.label}</span>
-                    <FieldInput
-                        field={field}
-                        value={values[field.name] ?? ''}
-                        invalid={Boolean(errors[field.name])}
-                        onChange={(value) => {
-                            setValues((prev) => ({...prev, [field.name]: value}))
-                            setErrors((prev) => {
-                                const next = {...prev}
-                                delete next[field.name]
-                                return next
-                            })
-                        }}
-                    />
-                    {(errors[field.name] || field.description) && (
-                        <small className={errors[field.name] ? 'field-error' : undefined}>
-                            {errors[field.name] ?? field.description}
-                        </small>
-                    )}
-                </label>
+                <FieldRow
+                    key={field.name}
+                    field={field}
+                    value={values[field.name] ?? ''}
+                    error={errors[field.name]}
+                    onChange={(value) => {
+                        setValues((prev) => ({...prev, [field.name]: value}))
+                        setErrors((prev) => {
+                            const next = {...prev}
+                            delete next[field.name]
+                            return next
+                        })
+                    }}
+                />
             ))}
             <button className="button primary" type="submit" disabled={isSubmitting}>
                 <Plus size={14}/>
@@ -59,6 +52,26 @@ export function DynamicFormRenderer({schema, isSubmitting, submitLabel = 'Create
             </button>
             {submitError && <div className="form-error">{submitError}</div>}
         </form>
+    )
+}
+
+function FieldRow({field, value, error, onChange}: {field: FieldSchema; value: string; error?: string; onChange: (value: string) => void}) {
+    return (
+        <>
+            {field.group && <div className="dynamic-form-group">{field.group}</div>}
+            <label className={`dynamic-field${field.span ? ' dynamic-field--span' : ''}`}>
+                <span>
+                    {field.label}
+                    {field.required && <em className="field-required">*</em>}
+                </span>
+                <FieldInput field={field} value={value} invalid={Boolean(error)} onChange={onChange}/>
+                {(error || field.description) && (
+                    <small className={error ? 'field-error' : undefined}>
+                        {error ?? field.description}
+                    </small>
+                )}
+            </label>
+        </>
     )
 }
 

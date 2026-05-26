@@ -60,6 +60,12 @@ export class CloudProxyService {
             displayName: 'Compute',
             availability: this.registry.get(cloud, 'compute') ? 'available' : 'coming_soon',
         })
+        services.push({
+            cloud,
+            service: 'networking',
+            displayName: 'Networking',
+            availability: this.registry.get(cloud, 'networking') ? 'available' : 'coming_soon',
+        })
         return services
     }
 

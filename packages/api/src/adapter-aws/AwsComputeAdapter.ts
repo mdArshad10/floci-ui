@@ -6,13 +6,14 @@ import type {
     ResourceQuery,
     ServiceSchema,
 } from '../cloud-spi/types'
-import {ec2Service, type Ec2Image, type Ec2Instance} from '../services/ec2'
+import {ec2Service, type Ec2Image, type Ec2Instance, type RunInstanceInput} from '../services/ec2'
 
 type Ec2ServiceShape = {
     listInstances(): Promise<Ec2Instance[]>
     describeInstance(instanceId: string): Promise<Ec2Instance>
     terminateInstance(instanceId: string): Promise<void>
     listAmis(): Promise<Ec2Image[]>
+    runInstance(input: RunInstanceInput): Promise<Ec2Instance>
 }
 
 export class AwsComputeAdapter implements CloudServiceAdapter {
@@ -46,10 +47,20 @@ export class AwsComputeAdapter implements CloudServiceAdapter {
         }
     }
 
-    async create(_input: CreateResourceInput): Promise<CloudResource> {
-        // EC2 creation requires cascading dropdowns (VPC → Subnet → SG) not expressible
-        // in the current flat FieldSchema — use the dedicated /api/ec2/instances endpoint.
-        throw new Error('Instance creation is not supported via the generic Cloud Explorer form.')
+    async create(input: CreateResourceInput): Promise<CloudResource> {
+        const v = input.values
+        const sgRaw = typeof v.securityGroupIds === 'string' ? v.securityGroupIds : ''
+        const securityGroupIds = sgRaw ? sgRaw.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined
+        const runInput: RunInstanceInput = {
+            name:           String(v.name ?? ''),
+            imageId:        String(v.imageId ?? ''),
+            instanceType:   String(v.instanceType ?? ''),
+            keyName:        v.keyName ? String(v.keyName) : undefined,
+            subnetId:       v.subnetId ? String(v.subnetId) : undefined,
+            securityGroupIds,
+        }
+        const instance = await this.service_.runInstance(runInput)
+        return instanceToResource(instance)
     }
 
     async delete(id: string): Promise<void> {

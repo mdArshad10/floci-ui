@@ -1,6 +1,6 @@
 export type CloudProvider = 'aws' | 'azure' | 'gcp'
 
-export type CloudServiceType = 'storage' | 'k8s' | 'database' | 'serverless' | 'compute'
+export type CloudServiceType = 'storage' | 'k8s' | 'database' | 'serverless' | 'compute' | 'networking'
 
 export type CloudAvailability = 'available' | 'coming_soon'
 
@@ -34,6 +34,8 @@ export interface FieldSchema {
     type: FieldType
     required: boolean
     description?: string
+    group?: string
+    span?: boolean
     validation?: {
         pattern?: string
         minLength?: number
@@ -81,7 +83,7 @@ export interface CloudResource {
     name: string
     cloud: Extract<CloudProvider, 'aws' | 'azure'>
     service: CloudServiceType
-    type: 'bucket' | 'container' | 'cluster' | 'db-instance' | 'instance' | 'image'
+    type: 'bucket' | 'container' | 'cluster' | 'db-instance' | 'instance' | 'image' | 'vpc'
     region: string | null
     createdAt: string | null
     status?: string | null

@@ -1,5 +1,6 @@
 import {CloudAdapterRegistry} from './registry/CloudAdapterRegistry'
 import {AwsComputeAdapter} from './adapter-aws/AwsComputeAdapter'
+import {AwsNetworkingAdapter} from './adapter-aws/AwsNetworkingAdapter'
 import {AwsDatabaseAdapter} from './adapter-aws/AwsDatabaseAdapter'
 import {AwsEksAdapter} from './adapter-aws/AwsEksAdapter'
 import {AwsStorageAdapter} from './adapter-aws/AwsStorageAdapter'
@@ -12,6 +13,7 @@ export function createCloudProxyService(): CloudProxyService {
         new AwsEksAdapter(),
         new AwsDatabaseAdapter(),
         new AwsComputeAdapter(),
+        new AwsNetworkingAdapter(),
         new AzureStorageAdapter(),
     ])
 

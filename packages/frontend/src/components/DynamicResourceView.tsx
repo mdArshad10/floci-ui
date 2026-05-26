@@ -11,6 +11,8 @@ import {DynamicFormRenderer} from '@/components/DynamicFormRenderer'
 import {ResourceInspector} from '@/components/ResourceInspector'
 import {ResourceTable} from '@/components/ResourceTable'
 import {StorageObjectBrowser} from '@/components/StorageObjectBrowser'
+import {ComputePanel, LaunchInstanceForm} from '@/components/ComputePanel'
+import {NetworkingPanel} from '@/components/NetworkingPanel'
 import {capabilityEnabled, capabilityFor, capabilitySummary, normalizeCapabilities, withRuntimeState} from '@/lib/capabilities'
 import type {CloudProvider, CloudServiceType, CloudStatus} from '@/types/cloud'
 import type {CloudResource, StorageObject} from '@/types/resource'
@@ -176,14 +178,26 @@ export function DynamicResourceView({cloud, service, cloudStatus, statusLoading 
                         </div>
                         {canCreate && createOpen && (
                             <div className="resource-create-inline">
-                                <DynamicFormRenderer
-                                    schema={schema}
-                                    isSubmitting={createMut.isPending}
-                                    submitLabel={createResourceLabel}
-                                    pendingLabel="Creating"
-                                    submitError={createMut.error instanceof Error ? createMut.error.message : null}
-                                    onSubmit={(values) => createMut.mutate(values)}
-                                />
+                                {service === 'compute' ? (
+                                    <LaunchInstanceForm
+                                        cloud={cloud}
+                                        selectedResource={activeSelected}
+                                        onSuccess={(resource) => {
+                                            setSelected(resource)
+                                            setCreateOpen(false)
+                                        }}
+                                        onCancel={() => setCreateOpen(false)}
+                                    />
+                                ) : (
+                                    <DynamicFormRenderer
+                                        schema={schema}
+                                        isSubmitting={createMut.isPending}
+                                        submitLabel={createResourceLabel}
+                                        pendingLabel="Creating"
+                                        submitError={createMut.error instanceof Error ? createMut.error.message : null}
+                                        onSubmit={(values) => createMut.mutate(values)}
+                                    />
+                                )}
                             </div>
                         )}
                         {renderResourceSurface({
@@ -204,6 +218,12 @@ export function DynamicResourceView({cloud, service, cloudStatus, statusLoading 
             </div>
             {service === 'storage' && (
                 <StorageObjectBrowser cloud={cloud} resource={selected} selectedObjectKey={selectedObject?.key} onSelectObject={setSelectedObject}/>
+            )}
+            {service === 'compute' && (
+                <ComputePanel cloud={cloud} resource={activeSelected} runtimeReachable={runtimeReachable}/>
+            )}
+            {service === 'networking' && (
+                <NetworkingPanel cloud={cloud} resource={activeSelected} runtimeReachable={runtimeReachable}/>
             )}
         </div>
     )

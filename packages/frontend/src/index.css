@@ -1102,10 +1102,16 @@ pre,
 
 .dynamic-form {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
     align-items: end;
     padding: 0;
+}
+
+.dynamic-form > button[type="submit"] {
+    grid-column: 1 / -1;
+    justify-self: end;
+    margin-top: 4px;
 }
 
 .dynamic-field {
@@ -1128,6 +1134,38 @@ pre,
 
 .dynamic-field .field-error {
     color: #fca5a5;
+}
+
+.dynamic-field--span {
+    grid-column: 1 / -1;
+}
+
+.dynamic-form-group {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+.dynamic-form-group::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.field-required {
+    color: var(--link);
+    font-style: normal;
+    margin-left: 3px;
+    font-size: 13px;
+    line-height: 1;
 }
 
 .input.invalid {
@@ -1224,7 +1262,222 @@ pre,
 }
 
 .resource-create-inline .dynamic-form {
-    grid-template-columns: repeat(2, minmax(180px, 1fr)) auto;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+}
+
+.launch-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+    align-items: start;
+}
+
+.launch-form-group {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+
+.launch-form-group::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.launch-field {
+    display: grid;
+    gap: 5px;
+}
+
+.launch-field > span {
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.launch-field--span {
+    grid-column: 1 / -1;
+}
+
+.launch-form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.sg-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 110px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    background: var(--surface);
+}
+
+.sg-checklist .muted {
+    font-size: 11px;
+    padding: 4px 0;
+}
+
+.sg-check-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 3px 0;
+    cursor: pointer;
+}
+
+.sg-check-item input[type="checkbox"] {
+    flex-shrink: 0;
+    accent-color: var(--link);
+}
+
+.sg-check-item code {
+    color: var(--text-3);
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
+}
+
+.sg-check-item span {
+    color: var(--text-1);
+    flex: 1;
+}
+
+.sg-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.sg-header > span {
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.sg-create-inline {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background: var(--raised);
+}
+
+.sg-create-field {
+    display: grid;
+    gap: 4px;
+}
+
+.sg-create-field > span {
+    color: var(--text-2);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.sg-create-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.sg-create-error {
+    flex: 1;
+    color: #fca5a5;
+    font-size: 11px;
+}
+
+.sg-rules-section {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.sg-rules-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sg-rules-label {
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.sg-rules-divider {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.sg-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sg-rule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sg-rule-row {
+    display: grid;
+    grid-template-columns: 80px 110px 1fr 24px;
+    gap: 4px;
+    align-items: center;
+}
+
+.sg-rule-header-row span {
+    color: var(--text-3);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0 2px;
+}
+
+.sg-rule-row .input {
+    height: 28px;
+    font-size: 11px;
+    padding: 0 6px;
+}
+
+.button.small {
+    padding: 3px 8px;
+    font-size: 11px;
+    gap: 4px;
+    height: auto;
 }
 
 .resource-table tr.selected td {

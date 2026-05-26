@@ -21,6 +21,8 @@ export interface FieldSchema {
     type: FieldType
     required: boolean
     description?: string
+    group?: string
+    span?: boolean
     validation?: {
         pattern?: string
         minLength?: number
