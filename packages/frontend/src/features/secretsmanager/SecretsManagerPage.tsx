@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Check,
   Copy,
@@ -16,15 +16,18 @@ import {
   X,
 } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
+import type { SecretSummary } from '@/api/aws/secretsmanager.api'
 import {
-  createSecret,
-  deleteSecret,
-  describeSecret,
-  getSecretValue,
-  listSecrets,
-  putSecretValue,
-  type SecretSummary,
-} from '@/api/services'
+  secretsManagerQueryKeys,
+  useSecretDetailQuery,
+  useSecretsQuery,
+  useSecretValueQuery,
+} from '@/api/aws/secretsmanager.queries'
+import {
+  useCreateSecretMutation,
+  useDeleteSecretMutation,
+  usePutSecretValueMutation,
+} from '@/api/aws/secretsmanager.mutations'
 import { timeAgo } from '@/lib/utils'
 
 // ─── Create secret form ─────────────────────────────────────────────────────────
@@ -36,8 +39,7 @@ function CreateSecretForm({ onClose }: { onClose: () => void }) {
   const [secretString, setSecretString] = useState('')
   const [err, setErr] = useState('')
 
-  const createMut = useMutation({
-    mutationFn: () => createSecret(name.trim(), secretString, description.trim() || undefined),
+  const createMut = useCreateSecretMutation({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['resources', 'secretsmanager'] })
       onClose()
@@ -50,7 +52,7 @@ function CreateSecretForm({ onClose }: { onClose: () => void }) {
     if (!name.trim()) return setErr('Secret name is required')
     if (!secretString) return setErr('Secret value is required')
     setErr('')
-    createMut.mutate()
+    createMut.mutate({ name: name.trim(), secretString, description: description.trim() || undefined })
   }
 
   return (
@@ -129,7 +131,7 @@ function SecretDrawer({
     setDeleteConfirm(false)
     setForceDelete(false)
     return () => {
-      qc.removeQueries({ queryKey: ['secret-value', secretId] })
+      qc.removeQueries({ queryKey: secretsManagerQueryKeys.value(secretId) })
     }
   }, [secretId, qc])
 
@@ -142,40 +144,23 @@ function SecretDrawer({
     setRevealed(false)
     setEditing(false)
     setDraftValue('')
-    qc.removeQueries({ queryKey: ['secret-value', secretId] })
+    qc.removeQueries({ queryKey: secretsManagerQueryKeys.value(secretId) })
   }, [tab, secretId, qc])
 
-  const detailQuery = useQuery({
-    queryKey: ['secret-detail', secretId],
-    queryFn: ({ signal }) => describeSecret(secretId!, signal),
-    enabled: Boolean(secretId),
-  })
+  const detailQuery = useSecretDetailQuery(secretId)
 
   // The plaintext value is only fetched once the user explicitly reveals it.
-  const valueQuery = useQuery({
-    queryKey: ['secret-value', secretId],
-    queryFn: ({ signal }) => getSecretValue(secretId!, signal),
-    enabled: Boolean(secretId) && revealed && tab === 'value',
-    // Keep the plaintext out of the long-lived cache: always refetch on reveal
-    // and drop it the moment the query loses its observer (drawer closed or a
-    // different secret selected) so a hidden value cannot be read back later.
-    gcTime: 0,
-    staleTime: 0,
-  })
+  const valueQuery = useSecretValueQuery(secretId, revealed && tab === 'value')
 
-  const putMut = useMutation({
-    mutationFn: () => putSecretValue(secretId!, draftValue),
+  const putMut = usePutSecretValueMutation({
     onSuccess: () => {
       setEditing(false)
       setDraftValue('')
-      void qc.invalidateQueries({ queryKey: ['secret-value', secretId] })
-      void qc.invalidateQueries({ queryKey: ['secret-detail', secretId] })
     },
     onError: (e) => alert(`Update failed: ${e instanceof Error ? e.message : e}`),
   })
 
-  const deleteMut = useMutation({
-    mutationFn: () => deleteSecret(secretId!, forceDelete),
+  const deleteMut = useDeleteSecretMutation({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['resources', 'secretsmanager'] })
       onDeleted()
@@ -194,7 +179,7 @@ function SecretDrawer({
   // other components) after the user hides it.
   function hideValue() {
     setRevealed(false)
-    qc.removeQueries({ queryKey: ['secret-value', secretId] })
+    qc.removeQueries({ queryKey: secretsManagerQueryKeys.value(secretId) })
   }
 
   function cancelEditing() {
@@ -344,7 +329,7 @@ function SecretDrawer({
                   spellCheck={false}
                 />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="button primary" disabled={putMut.isPending || !draftValue} onClick={() => putMut.mutate()}>
+                  <button className="button primary" disabled={putMut.isPending || !draftValue} onClick={() => putMut.mutate({ id: secretId!, secretString: draftValue })}>
                     {putMut.isPending ? <Loader2 size={13} className="spin" /> : <Save size={13} />}
                     Save new version
                   </button>
@@ -402,7 +387,7 @@ function SecretDrawer({
               Force delete (no 7-day recovery window)
             </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="button danger" onClick={() => deleteMut.mutate()} disabled={deleteMut.isPending}>
+              <button className="button danger" onClick={() => deleteMut.mutate({ id: secretId!, force: forceDelete })} disabled={deleteMut.isPending}>
                 {deleteMut.isPending ? <Loader2 size={12} className="spin" /> : 'Yes, delete'}
               </button>
               <button className="button" onClick={() => setDeleteConfirm(false)}>Cancel</button>
@@ -426,10 +411,7 @@ export function SecretsManagerPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  const query = useQuery({
-    queryKey: ['resources', 'secretsmanager'],
-    queryFn: ({ signal }) => listSecrets(signal),
-  })
+  const query = useSecretsQuery()
 
   const secrets = useMemo(() => {
     const all = query.data ?? []
