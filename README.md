@@ -27,6 +27,8 @@ The initial unified scope is intentionally small:
 
 - AWS S3 through Floci AWS Core.
 - Azure Blob Storage through Floci-AZ.
+- AWS Compute through the Cloud Explorer adapter model.
+- AWS Networking through the Cloud Explorer adapter model.
 - GCP appears only as a coming-soon placeholder.
 
 Future scope:
@@ -102,22 +104,85 @@ Normalized resource shape:
 }
 ```
 
-## Current UI Status
+## Unified Compute Scope
 
-These percentages describe UI coverage for the existing AWS-focused service pages, not backend completeness. Floci core
-supports more operations than this UI currently exposes.
+`compute` is available in the Cloud Explorer for AWS only.
 
-| Service    | UI coverage | Current UI status                                                                                                                                                                                                                                                            |
-|------------|------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| S3         |         95% | Full bucket and object lifecycle. List, create, delete buckets. Browse objects by prefix with folder navigation. Upload, download, delete, bulk-delete, and copy objects. Read object metadata and tags. Read/update bucket tags and versioning.                             |
-| DynamoDB   |         95% | Full table lifecycle. List, describe, create, delete tables. Scan with configurable limit. Query by partition key with sort-key operators. Create, edit, and delete items via JSON editor. Key schema badges and typed value rendering.                                      |
-| SQS        |        100% | Full queue lifecycle and management. List, create, delete, purge queues. Send single (FIFO-aware) and batch messages. Peek and delete messages. Queue tags. Editable configuration. Dead-letter queue config and redrive.                                                    |
-| Lambda     |         90% | Full function detail. List functions, filter by name or runtime. Detail drawer with runtime, state, architecture, ARN, handler, memory, timeout, code size, environment variables. Invoke with JSON payload, response display, and log tail. Delete function.                |
-| SNS        |         90% | Full topic lifecycle. List, create (standard and FIFO), delete topics. List and manage subscriptions per topic (sqs, lambda, http, https, email, sms). Subscribe and unsubscribe endpoints. Publish messages with optional subject.                                          |
-| CloudWatch |         90% | Full log management. List, filter, create, delete log groups with retention policy. List and delete log streams. Browse and search log events. Rich parsing of Floci ingestor events into HTTP method/status/latency rows. List metrics and alarms. Auto-refresh every 10 s. |
-| EC2        |         99% | Full AWS-console-style surface. Networking sidebar grouped under "Networking": VPCs, Subnets, Internet Gateways, NAT Gateways, Route Tables, Elastic IPs. Launch instances via wizard (AMI, type, key pair, VPC/subnet/SG, IAM profile, user data). Full lifecycle: start, stop, reboot, terminate. Create AMI, console output, inline tag editor. Security group ingress rule editor. Key pair creation with one-time PEM display. VPC wizard (auto-provisions IGW, NAT GW, route tables). Route Table full editor (add/delete routes + subnet associations). NAT GW create with auto-allocate or existing EIP. Available in Cloud Explorer at /cloud-explorer/aws/compute. |
+| Cloud | Runtime | Adapter | Resource mapping | Status |
+|---|---|---|---|---|
+| AWS | Floci AWS Core | AWS Compute Adapter | EC2 instance / AMI -> compute resource | Partial |
+| Azure | Future Floci-AZ compute adapter | Azure Compute Adapter | VM -> compute resource | Coming soon |
+| GCP | Future Floci-GP compute adapter | GCP Compute Adapter | VM instance -> compute resource | Coming soon |
 
-Connected services today:
+Current AWS Compute support in the unified Cloud Explorer:
+
+- List EC2 instances as normalized compute resources.
+- List AMIs as normalized compute resources.
+- Inspect normalized instance and AMI metadata.
+- Launch instances through an AWS-specific Compute panel.
+- Start, stop, reboot, and terminate instances.
+- View console output.
+- Create AMIs from instances.
+- Edit instance tags.
+- Deregister AMIs.
+
+Current limitations:
+
+- Instance launch uses the Compute panel instead of the generic Cloud Explorer form because it needs dependent selectors
+  such as VPC -> Subnet -> Security Group.
+- There is no standalone legacy `/ec2` frontend page in the current UI.
+
+## Unified Networking Scope
+
+`networking` is available in the Cloud Explorer for AWS only.
+
+| Cloud | Runtime | Adapter | Resource mapping | Status |
+|---|---|---|---|---|
+| AWS | Floci AWS Core | AWS Networking Adapter | VPC -> networking resource | Partial |
+| Azure | Future Floci-AZ networking adapter | Azure Networking Adapter | VNet -> networking resource | Coming soon |
+| GCP | Future Floci-GP networking adapter | GCP Networking Adapter | VPC network -> networking resource | Coming soon |
+
+Current AWS Networking support in the unified Cloud Explorer:
+
+- List VPCs as normalized networking resources.
+- Inspect selected VPC metadata.
+- Use the Networking panel for VPC, subnet, security group, gateway, route table, NAT gateway, and Elastic IP workflows.
+- Create VPCs directly or through the VPC wizard.
+- Allocate, associate, disassociate, and release Elastic IPs.
+
+Current limitations:
+
+- AWS Networking uses an AWS-specific panel because the workflows need resource-specific forms and nested operations.
+- Azure VNet and GCP VPC adapters are not implemented yet.
+
+## Current Cloud Service Status
+
+These percentages describe UI coverage in the current frontend, grouped by the `Cloud Services` navigation model. They
+do not describe backend completeness. A category can have a mature AWS-specific page while still being only partially
+integrated into the unified Cloud Explorer model.
+
+| Category | AWS | Azure | GCP | Current UI status |
+|---|---:|---:|---:|---|
+| Storage | 95% | 80% | Coming soon | Unified Cloud Explorer support for AWS S3 and Azure Blob Storage. Buckets/containers, object browsing, upload, download, delete, folder prefixes, metadata, and inspector are wired. AWS still has a richer legacy S3 page for bucket tags, object tags, versioning, copy, and bulk delete. |
+| Compute | 70% | Coming soon | Coming soon | AWS Compute is available under `/cloud-explorer/aws/compute`. It lists EC2 instances and AMIs, exposes launch/lifecycle actions through the Compute panel, supports console output, tags, AMI creation, and terminate/start/stop/reboot flows. Azure and GCP compute adapters are placeholders. |
+| Networking | 75% | Coming soon | Coming soon | AWS Networking is available under `/cloud-explorer/aws/networking`. The panel exposes VPCs, subnets, security groups, internet gateways, NAT gateways, route tables, elastic IPs, and a VPC wizard through EC2-backed APIs. Azure VNet and GCP VPC support are placeholders. |
+| k8s Engine | 35% | Coming soon | Coming soon | AWS EKS can be listed and inspected through the Cloud Explorer adapter and the dedicated EKS page. Cluster creation and node group management are not yet surfaced. |
+| Database | 45% | Coming soon | Coming soon | AWS database support focuses on RDS and DynamoDB. RDS is list/inspect oriented, while DynamoDB has a mature AWS-specific table/item UI. A normalized multi-cloud database model is still in progress. |
+| Queue | 100% AWS legacy | Coming soon | Coming soon | AWS SQS has a mature AWS-specific page for queue lifecycle, messages, tags, settings, DLQ configuration, and redrive. It is not yet exposed as a unified Cloud Explorer `queue` service. |
+| Function | 90% AWS legacy | Coming soon | Coming soon | AWS Lambda has a mature AWS-specific page for list, inspect, invoke, log tail, environment variables, and delete. It is not yet exposed as a unified Cloud Explorer `function/serverless` service in the frontend sidebar. |
+| Events | 90% AWS legacy | Coming soon | Coming soon | AWS SNS has a mature AWS-specific page for topics, subscriptions, and publish. A normalized eventing category is not wired yet. |
+| Observability | 90% AWS legacy | Coming soon | Coming soon | AWS CloudWatch has a mature AWS-specific page for logs, metrics list, alarms list, and Floci request ingestion. A normalized multi-cloud observability category is not wired yet. |
+| Security / Identity | Placeholder | Placeholder | Placeholder | IAM, KMS, Secrets Manager, Cognito, and related services remain placeholders in the UI. |
+
+Connected Cloud Explorer categories today:
+
+- Storage: AWS S3, Azure Blob Storage.
+- Compute: AWS EC2.
+- Networking: AWS VPC/networking resources.
+- k8s Engine: AWS EKS.
+- Database: AWS RDS/DynamoDB-oriented support.
+
+AWS-specific legacy pages still available today:
 
 - CloudWatch
 - S3
@@ -125,238 +190,279 @@ Connected services today:
 - Lambda
 - DynamoDB
 - SNS
-- EC2
-
-Placeholder services today:
-
-- Secrets Manager
-- Cognito
+- EKS
 - RDS
-- ElastiCache
-- IAM
-- Systems Manager
-- KMS
 
-## Service Detail
+Placeholder or not-yet-normalized categories today:
+
+- Azure Compute, Networking, k8s, Database, Queue, Function, Events, Observability.
+- GCP all categories.
+- IAM, KMS, Secrets Manager, Cognito, Systems Manager, ElastiCache.
+
+## Category Detail
 
 <details>
-<summary><strong>S3 — 95%</strong></summary>
+<summary><strong>Storage</strong></summary>
 
-### S3
+### Storage
 
-Implemented:
+Cloud Explorer support:
 
-- List buckets.
-- Create bucket.
-- Delete bucket.
-- Browse objects by prefix.
-- Folder-style navigation and breadcrumb.
-- Create folder placeholders.
-- Upload objects.
-- Download objects.
-- Delete one object.
-- Delete multiple selected objects (bulk bar).
-- Copy objects.
-- Read object metadata (content type, size, ETag, cache-control, encoding).
-- Read and update object tags.
-- Read and update bucket tags.
-- Read and update bucket versioning.
+- AWS S3 bucket -> normalized storage resource.
+- Azure Blob container -> normalized storage resource.
+- GCP Cloud Storage is a placeholder.
+- Shared resource table, resource inspector, runtime status, adapter status, and action capabilities.
+- Object/blob browser with prefix navigation.
+- Upload, download, delete, refresh, and folder-prefix creation.
+- Azure folder markers are hidden and rendered as navigable folders.
+- Size and last-modified metadata are normalized for AWS objects and Azure blobs when the runtime returns them.
+
+AWS-specific S3 page still adds:
+
+- Bucket tags.
+- Object tags.
+- Bucket versioning.
+- Copy object.
+- Bulk delete.
+- Rich bucket/object lifecycle controls.
 
 Remaining gaps:
 
-| Feature                  | Floci API availability                                                        |
-|--------------------------|-------------------------------------------------------------------------------|
-| Object version browser   | Versioning is enabled via UI but listing individual versions is not yet wired |
-| Bucket policy management | Available in core if S3 policy endpoints are enabled                          |
-| Presigned URL workflow   | Available through AWS-compatible S3 behavior                                  |
-| Multipart upload UI      | Available in core, not exposed in UI                                          |
+| Gap | Notes |
+|---|---|
+| GCP Storage | Coming soon |
+| Azure bucket/container advanced settings | Tags, access policy, and metadata editing are not yet exposed |
+| Unified bulk actions | Multi-select and bulk delete are richer in the AWS S3 page than the Cloud Explorer storage view |
+| Version browser | AWS versioning can be toggled in legacy S3, but object version browsing is not wired |
 
 </details>
 
 <details>
-<summary><strong>DynamoDB — 95%</strong></summary>
+<summary><strong>Compute</strong></summary>
 
-### DynamoDB
+### Compute
 
-Implemented:
+AWS support:
 
-- List tables.
-- Create table (partition key, optional sort key, PAY_PER_REQUEST or PROVISIONED billing).
-- Delete table.
-- Describe table metadata (status, item count, size, billing mode, key schema).
-- Key schema badges (HASH in amber, RANGE in purple).
-- Scan table items with configurable limit.
-- Query by partition key with sort-key operators (=, <, <=, >, >=, begins_with, between).
-- Dynamic column rendering with typed values (numbers in green, booleans in blue).
-- Create item via JSON editor.
-- Edit item via JSON editor.
-- Delete item with inline confirmation.
-- Client-side search filter across all visible rows.
+- Entry point: `/cloud-explorer/aws/compute`.
+- AWS Compute adapter registered through the Cloud Adapter Registry.
+- Normalized EC2 instances and AMIs in the generic resource table.
+- Compute panel for AWS-specific operations.
+- Instance launch form with AMI, instance type, key pair, VPC/subnet/security group, IAM profile, and user data.
+- Instance lifecycle actions: start, stop, reboot, terminate.
+- Console output.
+- Create AMI from instance.
+- Inline instance tag editing.
+- AMI deregistration.
+
+Provider status:
+
+| Provider | Status |
+|---|---|
+| AWS | Partial but usable |
+| Azure | Coming soon |
+| GCP | Coming soon |
 
 Remaining gaps:
 
-| Feature                     | Floci API availability                                                |
-|-----------------------------|-----------------------------------------------------------------------|
-| TTL view and update         | `DescribeTimeToLive` / `UpdateTimeToLive`                             |
-| Batch write and bulk delete | `BatchWriteItem`                                                      |
-| GSI / LSI management        | `UpdateTable`                                                         |
-| UpdateItem (partial update) | `UpdateItem` — current edit uses PutItem which replaces the full item |
+| Gap | Notes |
+|---|---|
+| Multi-cloud compute contract | AWS EC2 is wired; Azure VM and GCP Compute Engine adapters are not implemented |
+| Generic create schema | EC2 launch needs dependent selectors, so it lives in the Compute panel rather than a flat generic form |
+| Full parity with AWS console | Some lower-level EC2 actions remain pending |
 
 </details>
 
 <details>
-<summary><strong>SQS — 100%</strong></summary>
+<summary><strong>Networking</strong></summary>
 
-### SQS
+### Networking
 
-Implemented:
+AWS support:
 
-- List queues.
-- Create queue (standard and FIFO, content-based deduplication, visibility timeout, retention period).
-- Delete queue with inline confirmation.
-- Purge queue with inline amber warning.
-- Select queue and read attributes.
-- Show message counts.
-- Edit queue configuration via the Settings tab (visibility timeout, delivery delay, receive wait time, max message
-  size, retention).
-- Send message — FIFO-aware: a message group id is sent for FIFO queues, and a deduplication id is generated only when
-  the queue does not use content-based deduplication.
-- Send message batch (up to 10, with an explicit over-limit warning).
-- Peek messages without consuming them.
-- Delete individual messages after peek.
-- Queue tags: list, add, and remove.
-- Dead-letter queue configuration: set and clear a redrive policy targeting another queue.
-- Dead-letter redrive: list the source queues this queue serves, and start a message move task to send their messages
-  back.
+- Entry point: `/cloud-explorer/aws/networking`.
+- AWS Networking adapter exposes VPCs as top-level normalized resources.
+- Networking panel for VPC and EC2-networking-specific operations.
+- VPC list, detail, create, delete, and VPC wizard.
+- Subnets list, create, delete, and detail.
+- Security groups list, create, delete, inbound rule editing, and outbound display.
+- Internet gateways list, create, attach, detach, delete.
+- NAT gateways list, create, delete.
+- Route tables list, create, edit routes, subnet associations, delete.
+- Elastic IPs list, allocate, associate, disassociate, release.
 
-Known limitations:
+Provider status:
 
-| Feature                        | Status                                                                                                                                                                |
-|--------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Redrive task history           | Floci core accepts `StartMessageMoveTask`, but its `ListMessageMoveTasks` handler currently returns no results — the task table stays empty until Floci core is fixed |
-| Per-message visibility control | `ChangeMessageVisibility` is not yet surfaced                                                                                                                         |
+| Provider | Status |
+|---|---|
+| AWS | Partial but usable |
+| Azure | Coming soon |
+| GCP | Coming soon |
+
+Remaining gaps:
+
+| Gap | Notes |
+|---|---|
+| Multi-cloud networking contract | AWS VPC is wired; Azure VNet and GCP VPC are not implemented |
+| Generic action schema | Many networking actions require resource-specific forms and are handled by the Networking panel |
+| Advanced network features | Peering, endpoints, ACLs, and deeper routing workflows are not yet complete |
 
 </details>
 
 <details>
-<summary><strong>Lambda — 90%</strong></summary>
+<summary><strong>k8s Engine</strong></summary>
 
-### Lambda
+### k8s Engine
 
-Implemented:
+AWS support:
 
-- List functions.
-- Filter by name or runtime.
-- Function card grid with runtime, state, handler, memory, timeout, code size, and last modified.
-- Detail drawer with "Details" and "Invoke" tabs.
-- Details tab: runtime badge, state badge, architecture badge, stateReason, full configuration meta-grid, ARN, role,
-  environment variables table.
-- Invoke tab: JSON payload editor, invoke button, response display (HTTP status, function error, execution duration),
-  log tail collapsible.
-- Delete function with inline confirmation in the drawer footer.
+- AWS EKS adapter exists for normalized Cloud Explorer list/inspect.
+- Dedicated EKS page exists for AWS-focused cluster inspection.
+- Cluster status, version, endpoint, VPC config, and node group information can be inspected when available.
+
+Provider status:
+
+| Provider | Status |
+|---|---|
+| AWS | List/inspect oriented |
+| Azure | Coming soon |
+| GCP | Coming soon |
 
 Remaining gaps:
 
-| Feature                      | Floci API availability                                     |
-|------------------------------|------------------------------------------------------------|
-| Create function              | `CreateFunction`                                           |
-| Event source mappings        | `ListEventSourceMappings`                                  |
-| Aliases                      | `ListAliases`                                              |
-| Versions                     | `ListVersionsByFunction`                                   |
-| Link to CloudWatch log group | CloudWatch log groups (by convention `/aws/lambda/{name}`) |
+| Gap | Notes |
+|---|---|
+| Cluster creation | Not surfaced |
+| Node group lifecycle | Not fully surfaced |
+| Azure AKS / GCP GKE | Not implemented |
 
 </details>
 
 <details>
-<summary><strong>CloudWatch — 90%</strong></summary>
+<summary><strong>Database</strong></summary>
 
-### CloudWatch
+### Database
 
-Implemented:
+AWS support:
 
-- List log groups with prefix filter.
-- Create log group with optional retention policy.
-- Delete log group with inline confirmation.
-- Log group list shows stored bytes, creation time, and retention badge.
-- List streams for a selected group.
-- Delete log stream with inline confirmation.
-- Browse log events for a selected stream.
-- Search events by message content.
-- Rich log event rendering: Floci ingestor JSON events are parsed into HTTP method badge, path, action, status code
-  badge, and latency.
-- List metrics table (namespace, metric name, dimensions).
-- List alarms table (name, state, metric) with expandable overflow.
-- Auto-refresh logs, streams, and events every 10 s.
-- Contextual header: shows group name and "ingestor" badge when a `/floci/*` group is selected; back arrow to return to
-  overview.
-- CloudWatch ingestor: automatically captures all Floci API calls into `/floci/{service}` log groups as the user
-  navigates the console.
+- AWS Database adapter exists for normalized Cloud Explorer list/inspect.
+- RDS page exists for AWS-focused database instance inspection.
+- DynamoDB page exists as a mature AWS-specific table/item UI.
+- DynamoDB supports table lifecycle, scan/query, create/edit/delete item, and typed value rendering.
+
+Provider status:
+
+| Provider | Status |
+|---|---|
+| AWS | RDS list/inspect plus mature DynamoDB legacy page |
+| Azure | Coming soon |
+| GCP | Coming soon |
 
 Remaining gaps:
 
-| Feature                     | Floci API availability                                                 |
-|-----------------------------|------------------------------------------------------------------------|
-| Metric graphing             | `GetMetricStatistics` / `GetMetricData`                                |
-| Alarm creation and edit     | `PutMetricAlarm`                                                       |
-| Create log stream from UI   | `CreateLogStream` — streams are currently created by the ingestor only |
-| Manual PutLogEvents from UI | `PutLogEvents`                                                         |
+| Gap | Notes |
+|---|---|
+| Unified database resource model | RDS and DynamoDB have different shapes and are not fully normalized into one category yet |
+| Azure database services | Not implemented |
+| GCP database services | Not implemented |
 
 </details>
 
 <details>
-<summary><strong>SNS — 90%</strong></summary>
+<summary><strong>Queue, Function, Events, and Observability</strong></summary>
 
-### SNS
+### Queue
 
-Implemented:
+AWS SQS has a mature AWS-specific page:
 
-- List topics with name filter.
-- Create topic (standard and FIFO, auto-appends `.fifo` suffix).
-- Delete topic with inline confirmation.
-- Select topic and manage subscriptions.
-- List active subscriptions per topic (protocol badge, endpoint).
-- Subscribe endpoint with protocol selector (sqs, lambda, http, https, email, email-json, sms).
-- Unsubscribe endpoint with inline confirmation.
-- Publish message with optional subject, result display with MessageId.
-- Informational SNS fanout panel.
+- Queue lifecycle.
+- FIFO-aware send message.
+- Batch send.
+- Peek and delete messages.
+- Queue tags.
+- Editable queue configuration.
+- Dead-letter queue configuration and redrive.
+
+Known limitation:
+
+| Feature | Status |
+|---|---|
+| Redrive task history | Floci core accepts `StartMessageMoveTask`, but `ListMessageMoveTasks` currently returns no results |
+| Per-message visibility control | `ChangeMessageVisibility` is not surfaced |
+
+### Function
+
+AWS Lambda has a mature AWS-specific page:
+
+- List and filter functions.
+- Detail drawer.
+- Runtime/state/configuration metadata.
+- Environment variables.
+- Invoke with JSON payload.
+- Response display and log tail.
+- Delete function.
 
 Remaining gaps:
 
-| Feature                                              | Floci API availability                                                                 |
-|------------------------------------------------------|----------------------------------------------------------------------------------------|
-| Topic attributes (display mode, deduplication scope) | `GetTopicAttributes` / `SetTopicAttributes`                                            |
-| Topic tags                                           | `TagResource` / `ListTagsForResource`                                                  |
-| Subscription confirmation flow                       | Protocol-specific — email/http require confirmation before `SubscriptionArn` is active |
-| Subscription filter policies                         | `SetSubscriptionAttributes`                                                            |
+| Feature | Status |
+|---|---|
+| Create function | Not surfaced |
+| Event source mappings | Not surfaced |
+| Aliases and versions | Not surfaced |
+
+### Events
+
+AWS SNS has a mature AWS-specific page:
+
+- Topic lifecycle.
+- Standard and FIFO topic creation.
+- Subscription list/manage.
+- Publish message with optional subject.
+
+Remaining gaps:
+
+| Feature | Status |
+|---|---|
+| Topic attributes | Not fully surfaced |
+| Topic tags | Not surfaced |
+| Subscription filter policies | Not surfaced |
+
+### Observability
+
+AWS CloudWatch has a mature AWS-specific page:
+
+- Log group lifecycle.
+- Log stream browsing.
+- Log event browsing and search.
+- Floci request ingestion into `/floci/{service}` log groups.
+- Metrics list.
+- Alarms list.
+
+Remaining gaps:
+
+| Feature | Status |
+|---|---|
+| Metric graphing | Not surfaced |
+| Alarm create/edit | Not surfaced |
+| Manual `PutLogEvents` | Not surfaced |
 
 </details>
 
 <details>
-<summary><strong>EC2 — 99%</strong></summary>
+<summary><strong>Security and Identity</strong></summary>
 
-### EC2
+### Security and Identity
 
-Implemented:
+Current status:
 
-- Collapsible sidebar with all 10 resource types. **Networking** group header above VPCs; sections: VPCs, Subnets, Internet Gateways, NAT Gateways, Route Tables, Elastic IPs. Compute: Instances, AMIs. Security: Security Groups, Key Pairs.
-- **Instances**: List with state badges, detail pane (instance + networking + security groups + tags). Launch wizard (AMI, type, key pair, VPC/subnet/SG, IAM profile, user data). Full lifecycle: Start, Stop, Reboot, Terminate (two-step confirm). Create AMI from instance. Console output modal. Inline tag editor.
-- **AMIs**: List with state, architecture, root device, creation date. Per-row inline confirm deregister.
-- **Security Groups**: List + detail. Create modal. Inline inbound rule editor (add/revoke). Outbound rules display. Delete with inline confirm.
-- **Key Pairs**: List + detail (ID, fingerprint). Create modal with one-time PEM display + Copy. Delete with inline confirm.
-- **VPCs**: List + detail. Two create paths: `+` simple modal (CIDR only) or `⊕` full VPC Wizard (auto-provisions IGW + NAT GW + public/private subnets + route tables, with live subnet preview). Delete with inline confirm (disabled for default VPC).
-- **Subnets**: List + detail (VPC, CIDR, AZ, available IPs). Create modal (VPC select, CIDR, optional AZ). Delete with inline confirm.
-- **Internet Gateways**: List + detail (ID, name, attached VPCs). Create modal (name optional, attach to VPC optional). Delete (auto-detaches all VPCs first). Delete with inline toolbar confirm.
-- **NAT Gateways**: List + detail (ID, VPC, subnet, state, public/private IP, EIP allocation). Create modal: subnet select + EIP source radio (auto-allocate or pick existing unattached EIP). Delete with polling until `deleted`. Inline toolbar confirm.
-- **Route Tables**: List + detail. Full inline editor: Routes table (Destination, Target, Status, Origin; add route with CIDR + IGW/NAT GW target dropdown; per-row delete except `local`). Subnet Associations table (associate new subnet from dropdown; per-row disassociate). Delete RTB (auto-disassociates non-main; hides delete for main RT).
-- **Elastic IPs**: List + detail (allocation ID, public IP, domain, association, instance). Allocate modal (optional name tag). Release with inline toolbar confirm (disabled when associated).
-- SPI adapter `delete()` wired to `TerminateInstances`. Available in Cloud Explorer at `/cloud-explorer/aws/compute`.
+- IAM is a placeholder.
+- KMS is a placeholder.
+- Secrets Manager is a placeholder.
+- Cognito is a placeholder.
+- Systems Manager is a placeholder.
 
-Remaining gaps:
-
-| Feature                        | Notes                                                        |
-|--------------------------------|--------------------------------------------------------------|
-| SPI `create()` via Cloud Explorer | EC2 launch requires cascading fields not modeled in FieldSchema |
-| Outbound rule editor           | Revoke outbound rules not implemented (display only)         |
+These categories are intentionally visible so users can see the intended console shape, but they should not show fake
+resources or demo data.
 
 </details>
 

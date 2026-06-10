@@ -3,9 +3,9 @@ import type {CloudProvider, CloudServiceType} from './cloud'
 export interface CloudResource {
     id: string
     name: string
-    cloud: Exclude<CloudProvider, 'gcp'>
+    cloud: CloudProvider
     service: CloudServiceType
-    type: 'bucket' | 'container' | 'cluster' | 'db-instance' | 'cosmos-database' | 'instance' | 'image' | 'vpc'
+    type: 'bucket' | 'container' | 'cluster' | 'db-instance' | 'cosmos-database' | 'instance' | 'image' | 'vpc' | 'lambda'
     region: string | null
     createdAt: string | null
     status?: string | null
