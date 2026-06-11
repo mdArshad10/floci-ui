@@ -591,6 +591,70 @@ pnpm type-check
 pnpm build
 ```
 
+## Troubleshooting
+
+### "Runtime unavailable" error
+
+If the UI shows "Runtime unavailable" or "The AWS Access Key Id you provided does not exist in our records", check the following:
+
+#### 1. AWS credentials mismatch
+
+The AWS credentials in `packages/api/.env` must match the credentials configured in your Floci container. By default, Floci uses `test`/`test`:
+
+```bash
+# Check Floci container credentials
+docker inspect floci --format '{{range .Config.Env}}{{println .}}{{end}}' | grep AWS
+
+# Ensure packages/api/.env has matching credentials
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+```
+
+#### 2. Missing .env file in packages/api
+
+The API server runs from `packages/api/` and uses `dotenv/config` to load environment variables. If `.env` only exists in the project root, the API will not find it.
+
+Copy `.env` to the API package directory:
+
+```bash
+cp .env packages/api/.env
+```
+
+Then restart the API server:
+
+```bash
+pnpm dev:api
+```
+
+#### 3. Verify connectivity
+
+Check that all services are reachable:
+
+```bash
+# Floci core
+curl http://localhost:4566/_localstack/health
+
+# API server
+curl http://localhost:3001/api/clouds/aws/status
+```
+
+The API response should show `"runtime": "reachable"` and `"error": null`.
+
+### Docker Compose network error
+
+When using `docker-compose.dev.yml`, you may encounter:
+
+```
+network floci_default declared as external, but could not be found
+```
+
+The compose file declares `floci_default` as an external network. Create it manually before running `docker compose up`:
+
+```bash
+docker network create floci_default
+docker compose -f docker-compose.dev.yml up
+```
+
 ## Design Direction
 
 The target experience is a practical AWS-console-style interface:
