@@ -1,0 +1,66 @@
+name: CI
+
+# Runs on every pull request and on pushes to main. The API tests are
+# self-contained unit tests (mocked clients) and do NOT require the Floci
+# emulators to be running.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, type-check, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      # ── Frontend toolchain (pnpm workspace) ────────────────────────────────
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.2.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── API toolchain (bun) — needed for tests and type-check ──────────────
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1'
+
+      - name: Install API dependencies
+        working-directory: packages/api
+        run: bun install --frozen-lockfile
+
+      # ── Checks ─────────────────────────────────────────────────────────────
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # Lint is non-blocking for now: main has pre-existing
+      # react-hooks/rules-of-hooks violations in NetworkingPanel.tsx. Drop
+      # continue-on-error once those are fixed to make lint gate PRs.
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: true

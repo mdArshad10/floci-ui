@@ -1,0 +1,109 @@
+name: Release
+
+# Triggered when a version tag (e.g. 1.2.3) is pushed.
+# Builds the frontend bundle and the API binary in the workflow, then packages
+# them into a multi-platform (amd64 + arm64) Docker image pushed to Docker Hub.
+# Nothing is compiled inside the Dockerfile — see docker/Dockerfile.package.
+#
+# Published tags:
+#   floci/floci-ui:1.2.3   floci/floci-ui:latest
+#
+# Required secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+# Per-tag concurrency. Re-runs of the same tag supersede in-flight builds of
+# that tag; distinct tags run in parallel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  push-image:
+    name: Build and push multi-arch image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Set created timestamp
+        id: created
+        run: echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Set SOURCE_DATE_EPOCH
+        id: source_date
+        run: echo "epoch=$(git log -1 --pretty=%ct)" >> "$GITHUB_OUTPUT"
+
+      # ── Build the frontend bundle (arch-independent) ───────────────────────
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.2.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Build frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @floci/frontend build
+          rm -rf public
+          mv packages/frontend/dist public
+
+      # ── Cross-compile the API binary for each arch (no QEMU needed) ────────
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1'
+
+      - name: Compile API binaries
+        working-directory: packages/api
+        run: |
+          bun install
+          bun build --compile --minify --target=bun-linux-x64-musl \
+            src/index.ts --outfile "$GITHUB_WORKSPACE/native/amd64/server"
+          bun build --compile --minify --target=bun-linux-arm64-musl \
+            src/index.ts --outfile "$GITHUB_WORKSPACE/native/arm64/server"
+
+      # ── Package the prebuilt artifacts into a multi-arch image ─────────────
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.source_date.outputs.epoch }}
+        with:
+          context: .
+          file: docker/Dockerfile.package
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            floci/floci-ui:${{ steps.version.outputs.version }}
+            floci/floci-ui:latest
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.created.outputs.created }}
+            version=${{ steps.version.outputs.version }}
+            build-date=${{ steps.created.outputs.created }}
+            vcs-ref=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
